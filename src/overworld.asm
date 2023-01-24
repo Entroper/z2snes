@@ -16,3 +16,8 @@ OverworldTilemap:     ; Indexes into above table, 4 tiles per overworld square
 .byte $1E,$1E,$1E,$1E ; Water (walkable)   
 .byte $04,$05,$06,$07 ; Rock               
 .byte $00,$01,$02,$03 ; Spider             
+
+OverworldEastHyruleCompressed:    .incbin "maps/overworld-east.bin"
+OverworldWestHyruleCompressed:    .incbin "maps/overworld-west.bin"
+OverworldDeathMountainCompressed: .incbin "maps/overworld-death-mountain.bin"
+OverworldMazeIslandCompressed:    .incbin "maps/overworld-maze-island.bin"
