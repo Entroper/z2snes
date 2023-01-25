@@ -102,13 +102,13 @@ CGRAMLoop:
 	; set up DMA channel 0 to transfer data to OAMRAM
 	lda #%00000010          ; set DMA channel 0
 	sta DMA0PARAM
-	lda #<DMABBASE-OAMDATA  ; set destination to OAMDATA
+	lda #<OAMDATA           ; set destination to OAMDATA
 	sta DMA0ADDB
 	ldx MirrorAddr          ; get address of OAMRAM mirror
-	stx A1T0L               ; set low and high byte of address
-	stz A1T0B               ; set bank to zero, since the mirror is in WRAM
+	stx DMA0ADDAL           ; set low and high byte of address
+	stz DMA0ADDAH           ; set bank to zero, since the mirror is in WRAM
 	ldx #$0220              ; set the number of bytes to transfer
-	stx DAS0L
+	stx DMA0AMTL
 
 	lda #$01                ; start DMA transfer
 	sta MDMAEN
