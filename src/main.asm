@@ -1,9 +1,6 @@
 ;----- Memory Map WRAM ---------------------------------------------------------
-HOR_SPEED   = $0300     ; the horizontal speed
-VER_SPEED   = $0301     ; the vertical speed
-JOYPAD1     = $0302     ; data read from joypad 1
-JOYTRIGGER1 = $0304     ; trigger read from joypad 1
-JOYHELD1    = $0306     ; held buttons read from joypad 1
+HOR_SPEED   = $0200     ; the horizontal speed
+VER_SPEED   = $0201     ; the vertical speed
 OAMMIRROR   = $0400     ; location of OAMRAM mirror in WRAM
 ;-------------------------------------------------------------------------------
 
@@ -19,10 +16,6 @@ SPRITE_SPEED    = $02   ; the sprites will move 2 pixel per frame
 SPRITE_SIZE     = $08   ; sprites are 8 by 8 pixel
 OAMMIRROR_SIZE  = $0220 ; OAMRAM can hold data for 128 sprites, 4 bytes each
     ; constants to use as masks
-UP_BUTTON       = $0800
-DOWN_BUTTON     = $0400
-LEFT_BUTTON     = $0200
-RIGHT_BUTTON    = $0100
 ;-------------------------------------------------------------------------------
 
 ;----- Assembler Directives ----------------------------------------------------
@@ -35,7 +28,13 @@ RIGHT_BUTTON    = $0100
 .import LoadCGRAM
 .import UpdateOAMRAM
 
+.import JOYPAD1
+.import JOYTRIGGER1
+.import JOYHELD1
+.import GetJoypadInputs
+
 .include "registers.inc"
+.include "joypad.inc"
 
 .segment "SPRITEDATA"
 SpriteData: .incbin "graphics/Sprites.vra"
@@ -52,12 +51,13 @@ ColorData:  .incbin "graphics/SpriteColors.pal"
         xce                     ; switch the 65816 to native (16-bit mode)
         rep #$10                ; set X and Y to 16-bit
         sep #$20                ; set A to 8-bit
-        lda #$8f                ; force v-blanking
+
+		lda #$8f                ; force v-blanking
         sta INIDISP
         stz NMITIMEN            ; disable NMI
-        ; set the stack pointer to $1fff
-        ldx #$1fff              ; load X with $1fff
-        txs                     ; copy X to stack pointer
+
+		ldx #$1fff              ; set the stack pointer to $1fff
+        txs
 
         ; load sprites into VRAM
         tsx                     ; save current stack pointer
@@ -181,33 +181,16 @@ OBJLoop:
 .proc   GameLoop
         wai                                 ; wait for NMI / V-Blank
 
-        ; read joypad 1
-        ; check whether joypad is ready
-WaitForJoypad:
-        lda HVBJOY                          ; get joypad status
-        and #$01                            ; check whether joypad done reading...
-        beq WaitForJoypad                   ; ...if not, wait a bit more
-        ; first, check for newly pressed buttons since last frame
-        rep #$20                            ; set A to 16-bit
-        lda JOY1L                           ; get new input from this frame
-        ldy JOYPAD1                         ; get input from last frame
-        sta JOYPAD1                         ; store new input from this frame
-        tya                                 ; check for newly pressed buttons...
-        eor JOYPAD1                         ; filter buttons that were not pressed last frame
-        and JOYPAD1                         ; filter held buttons from last frame
-        sta JOYTRIGGER1                     ; ...and store them
-        ; second, check for buttons held from last frame
-        tya                                 ; get input from last frame
-        and JOYPAD1                         ; filter held buttons from last frame...
-        sta JOYHELD1                        ; ...store them
+		jsr GetJoypadInputs
 
-        ; check the dpad, if any of the directional buttons where pressed or held,
+       	rep #$20                            ; set A to 16-bit
+		; check the dpad, if any of the directional buttons where pressed or held,
         ; move the sprites accordingly
 CheckUpButton:
         lda #$0000                          ; set A to zero
         ora JOYTRIGGER1                     ; check whether the up button was pressed this frame...
         ora JOYHELD1                        ; ...or held from last frame
-        and #UP_BUTTON
+        and #BUTTON_UP
         beq CheckUpButtonDone               ; if neither has occured, move on
         ; else, move sprites up
         ldy #$0000                          ; Y is the loop counter
@@ -233,7 +216,7 @@ CheckDownButton:
         lda #$0000                          ; set A to zero
         ora JOYTRIGGER1                     ; check whether the down button was pressed this frame...
         ora JOYHELD1                        ; ...or held from last frame
-        and #DOWN_BUTTON
+        and #BUTTON_DOWN
         beq CheckDownButtonDone             ; if neither has occured, move on
         ; else, move sprites down
         ldy #$0000                          ; Y is the loop counter
@@ -285,7 +268,7 @@ CheckLeftButton:
         lda #$0000                          ; set A to zero
         ora JOYTRIGGER1                     ; check whether the up button was pressed this frame...
         ora JOYHELD1                        ; ...or held from last frame
-        and #LEFT_BUTTON
+        and #BUTTON_LEFT
         beq CheckLeftButtonDone             ; if neither has occured, move on
         ; else, move sprites up
         ldy #$0000                          ; Y is the loop counter
@@ -311,7 +294,7 @@ CheckRightButton:
         lda #$0000                          ; set A to zero
         ora JOYTRIGGER1                     ; check whether the down button was pressed this frame...
         ora JOYHELD1                        ; ...or held from last frame
-        and #RIGHT_BUTTON
+        and #BUTTON_RIGHT
         beq CheckRightButtonDone            ; if neither has occured, move on
         ; else, move sprites down
         ldy #$0000                          ; Y is the loop counter
