@@ -33,6 +33,8 @@ OAMMIRROR_SIZE  = $0220 ; OAMRAM can hold data for 128 sprites, 4 bytes each
 .import JOYHELD1
 .import GetJoypadInputs
 
+.import DoOverworld
+
 .include "registers.inc"
 .include "joypad.inc"
 
@@ -170,6 +172,8 @@ OBJLoop:
         ; enable NMI, turn on automatic joypad polling
         lda #$81
         sta NMITIMEN
+
+		jsr DoOverworld
 
         jmp GameLoop            ; all initialization is done
 .endproc
