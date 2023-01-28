@@ -180,55 +180,61 @@ RowLoopBottom:
 	PixelValue       = $02
 	TilePaletteIndex = $04
 TileLoop:
-	rep #$20                ; set A to 16-bit
-	lda OverworldTiles, X   ; A now has one row of pixel data, HHHHHHHH LLLLLLLL high and low bits of each pixel
-	sta Tile                ; working location
+	rep #$20                       ; set A to 16-bit
+	txa                            ; X is the index into the tile data, we also need the index into the tile palette map
+	lsr                            ; A tile is 16 bytes, and a palette is 4 bytes, so the palette index is the
+	lsr                            ; tile index divided by 4...
+	and #$FFFC                     ; with the lower two bits masked off (these will be the 2bpp color value of the tile)
+	sta TilePaletteIndex           ; save the tile palette index
+	sep #$20                       ; set A to 8-bit
 
-	txa                     ; X is the index into the tile data, we also need the index into the tile palette map
-	lsr                     ; A tile is 16 bytes, so divide by 16 to get the tile palette index
-	lsr
-	lsr
-	lsr
-	clc
-	asl                     ; Then shift it back up because palettes have 4 colors
-	asl
-	sta TilePaletteIndex    ; save the tile palette index
-
-	phx                     ; save tile index
-	sep #$20                ; set A to 8-bit
-	ldy #$0008              ; loop 8 times, once per pixel in the row
+    lda OverworldTiles, X          ; load a byte of tile data
+	sta Tile                       ; put it in memory
+	lda OverworldTiles + 8, X      ; load the same byte from the other bitplane, 8 bytes after
+	sta Tile + 1                   ; put it in memory
+	phx                            ; save tile index
+	ldy #$0008                     ; loop 8 times, once for each bit (a pixel is one bit from each of the two bitplanes)
 PixelLoop:
-	lda Tile                ; load first byte
-	and #$01                ; get the low bit
-	sta PixelValue
-	lda $01                 ; load second byte
-	and #$01                ; get the high bit
-	clc
-	asl                     ; shift it left so it's the high bit
-	ora PixelValue          ; combine the bits from the bitplanes, A now has the 2bpp value of the pixel
-	sta PixelValue          ; save 2bpp value
-	stz PixelValue + 1      ; this will be 16-bit when we read it in a second
+	lda Tile                       ; load byte from the low bitplane
+	asl                            ; shift the high bit into carry
+	sta Tile                       ; save the shifted byte
+	lda #$00                       ; clear A
+	rol                            ; rotate carry into A, A now has the value from the low bitplane
+	sta PixelValue                 ; store that in memory
+	lda Tile + 1                   ; load byte from the high bitplane
+	asl                            ; shift the high bit into carry
+	sta Tile + 1                   ; save the shifted byte
+	lda #$00                       ; clear A
+	rol                            ; rotate carry into A, A now has the value from the high bitplane
+	asl                            ; shift it to its proper position
+	ora PixelValue                 ; combine it with the value from the low bitplane, A now has the 2bpp value
+	sta PixelValue                 ; save that to memory
+	stz PixelValue + 1             ; this needs to be zeroed because A will be 16-bit when it's read
 
-	rep #$20                ; set A to 16-bit
-	lda TilePaletteIndex    ; get tile palette index
-	ora PixelValue          ; now we have the actual palette index (this is where we do the 16-bit read)
-	tax                     ; store it in X
-	sep #$20                ; set A to 8-bit
+	rep #$20                       ; set A to 16-bit
+	lda TilePaletteIndex           ; get tile palette index
+	ora PixelValue                 ; now we have the actual palette index (this is where we do the 16-bit read)
+	tax                            ; store it in X
+	sep #$20                       ; set A to 8-bit
 	lda OverworldTilePaletteMap, X ; get the actual pixel value
-	sta VMDATAH             ; store the pixel to VRAM
+	sta VMDATAH                    ; store the pixel to VRAM
 
-	rep #$20                ; set A to 16-bit
-	lda Tile                ; get the original pixel data
-	lsr                     ; shift it down for the next pixel
-	sta Tile                ; put it back in memory
-	sep #$20                ; set A to 8-bit
 	dey
-	bne PixelLoop
+	bne PixelLoop                  ; loop to process 8 bits from each bitplane, one row of pixels
 
-	plx                     ; get tile index back
-	inx                     ; advance two bytes
-	inx
-	cpx #$0230              ; length of tile data
+	plx                            ; get tile index back
+	inx                            ; advance to the next byte
+	rep #$20                       ; set A to 16-bit
+	txa
+	and #$0007                     ; get the lower 3 bits of the tile index
+	bne :+                         ; if it's divisible by 8...
+	txa                            ; get the original value back
+	clc
+	adc #$08                       ; skip 8 bytes (because we already read them, they were the high bitplane)
+	tax
+	sep #$20                       ; set A to 8-bit
+:
+	cpx #$0230                     ; length of tile data
 	bne TileLoop
 
 	rts
