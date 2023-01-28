@@ -3,8 +3,13 @@
 .i16
 
 .include "registers.inc"
+.include "joypad.inc"
 
-.export DoOverworld
+.export LoadOverworld
+.export DoOverworldMovement
+.export SetMode7Matrix
+
+.import JOYPAD1
 
 OverworldTiles:          .incbin "graphics/overworld-tiles.vra"
 OverworldTilePaletteMap: .incbin "graphics/overworld-tile-palettes.bin"
@@ -18,7 +23,15 @@ OverworldMazeIslandCompressed:    .incbin "maps/overworld-maze-island.bin"
 
 OverworldMap = $7E7000 ; store the decompressed overworld map from $7E:7000-7E:7FFF
 
-.proc DoOverworld
+MAPPOSX  = $1000
+MAPPOSY  = $1002
+MINPOSX  = $0080
+MAXPOSX  = $0380
+MINPOSY  = $0070
+MAXPOSY  = $0390
+
+; $188, $178
+.proc LoadOverworld
 	sep #$20                ; set A to 8-bit
 	lda #$8f                ; force v-blanking
 	sta INIDISP
@@ -28,6 +41,12 @@ OverworldMap = $7E7000 ; store the decompressed overworld map from $7E:7000-7E:7
 	jsr LoadOverworldCharacters
 	jsr LoadOverworldGraphics
 	jsr LoadOverworldPalette
+
+	rep #$20                ; set A to 16-bit
+	lda #$0188              ; initial x scroll
+	sta MAPPOSX
+	lda #$0178              ; initial y scroll
+	sta MAPPOSY
 
 	sep #$20                ; set A to 8-bit
 	lda #$07
@@ -41,13 +60,8 @@ OverworldMap = $7E7000 ; store the decompressed overworld map from $7E:7000-7E:7
 	stz M7C
 	stz M7D
 	sta M7D
-	stz M7X                 ; X and Y don't matter much yet
-	stz M7Y
 
-	stz BG1HOFS             ; initialize offsets
-	stz BG1HOFS
-	stz BG1VOFS
-	stz BG1VOFS
+	jsr SetMode7Matrix      ; set up Mode 7 transform parameters
 
 	lda #$01                ; enable BG1
 	sta TM
@@ -111,7 +125,7 @@ RLELoop:
 	sep #$20                    ; set A to 8-bit
 	rep #$10                    ; set X,Y to 16-bit
 	ldx #$0000
-	stz VMADDL                  ; start at VRAM address 0
+	stx VMADDL                  ; start at VRAM address 0
 	stz VMAINC                  ; increment VRAM when writing to VMADDL
 
 MapLoop:
@@ -254,6 +268,89 @@ Loop:
 	inx
 	cpx #$005C              ; length of palette data
 	bne Loop
+
+	rts
+.endproc
+
+.proc DoOverworldMovement
+       	rep #$20                            ; set A to 16-bit
+		; check the dpad, if any of the directional buttons are pressed,
+        ; move the screen accordingly
+CheckUpButton:
+        lda JOYPAD1                         ; read joypad buttons pressed
+        and #BUTTON_UP
+        beq CheckDownButton
+		lda MAPPOSY
+		cmp #MINPOSY
+		beq CheckDownButton
+		dec
+		sta MAPPOSY
+
+CheckDownButton:
+        lda JOYPAD1                         ; read joypad buttons pressed
+        and #BUTTON_DOWN
+        beq CheckLeftButton
+		lda MAPPOSY
+		cmp #MAXPOSY
+		beq CheckLeftButton
+		inc
+		sta MAPPOSY
+
+CheckLeftButton:
+        lda JOYPAD1                         ; read joypad buttons pressed
+        and #BUTTON_LEFT
+        beq CheckRightButton
+		lda MAPPOSX
+		cmp #MINPOSX
+		beq CheckRightButton
+		dec
+		sta MAPPOSX
+
+CheckRightButton:
+        lda JOYPAD1                         ; read joypad buttons pressed
+        and #BUTTON_RIGHT
+        beq Done
+		lda MAPPOSX
+		cmp #MAXPOSX
+		beq Done
+		inc
+		sta MAPPOSX
+Done:
+		rts
+.endproc
+
+.proc SetMode7Matrix
+	sep #$20          ; set A to 8-bit
+	lda MAPPOSX
+	sta M7X
+	lda MAPPOSX + 1
+	sta M7X
+	lda MAPPOSY
+	sta M7Y
+	lda MAPPOSY + 1
+	sta M7Y
+
+	TempX = $00
+	TempY = $02
+	rep #$20          ; set A to 16-bit
+	lda MAPPOSX
+	sec
+	sbc #$80
+	sta TempX
+	lda MAPPOSY
+	sec
+	sbc #$70
+	sta TempY
+
+	sep #$20          ; set A to 8-bit
+	lda TempX
+	sta BG1HOFS
+	lda TempX + 1
+	sta BG1HOFS
+	lda TempY
+	sta BG1VOFS
+	lda TempY + 1
+	sta BG1VOFS
 
 	rts
 .endproc

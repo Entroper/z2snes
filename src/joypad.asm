@@ -1,3 +1,7 @@
+.p816
+.a8
+.i16
+
 .export JOYPAD1     = $0300     ; data read from joypad 1
 .export JOYTRIGGER1 = $0302     ; trigger read from joypad 1
 .export JOYHELD1    = $0304     ; held buttons read from joypad 1
@@ -6,14 +10,11 @@
 
 .include "registers.inc"
 
-.p816                           ; tell the assembler this is 65816 code
-.a8
-.i16
-
 .proc GetJoypadInputs
+	sep #$20                            ; set A to 8-bit
 	lda HVBJOY                          ; get joypad status
 	and #$01                            ; check whether joypad done reading...
-	beq GetJoypadInputs                 ; ...if not, wait a bit more
+	bne GetJoypadInputs                 ; ...if not, wait a bit more
 	; first, check for newly pressed buttons since last frame
 	rep #$20                            ; set A to 16-bit
 	lda JOY1L                           ; get new input from this frame
