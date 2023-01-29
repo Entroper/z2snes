@@ -11,6 +11,9 @@
 
 .import JOYPAD1
 
+.import Sine
+.import Cosine
+
 OverworldTiles:          .incbin "graphics/overworld-tiles.vra"
 OverworldTilePaletteMap: .incbin "graphics/overworld-tile-palettes.bin"
 OverworldPalette:        .incbin "graphics/overworld.pal"
@@ -29,6 +32,10 @@ MINPOSX  = $0080
 MAXPOSX  = $0380
 MINPOSY  = $0070
 MAXPOSY  = $0390
+MAPANGLE = $1004
+MAPZOOM  = $1006
+MAXZOOM  = $0200
+MINZOOM  = $0080
 
 ; $188, $178
 .proc LoadOverworld
@@ -47,6 +54,9 @@ MAXPOSY  = $0390
 	sta MAPPOSX
 	lda #$0178              ; initial y scroll
 	sta MAPPOSY
+	stz MAPANGLE            ; initial rotation (none)
+	lda #$0100              ; initial zoom (1x)
+	sta MAPZOOM
 
 	sep #$20                ; set A to 8-bit
 	lda #$07
@@ -54,12 +64,12 @@ MAXPOSY  = $0390
 	stz M7A
 	lda #$01
 	sta M7A                 ; initialize Mode 7 matrix with identity
-	stz M7B
-	stz M7B
-	stz M7C
-	stz M7C
 	stz M7D
 	sta M7D
+	stz M7B
+	stz M7B
+	stz M7C
+	stz M7C
 
 	jsr SetMode7Matrix      ; set up Mode 7 transform parameters
 
@@ -273,50 +283,69 @@ Loop:
 .endproc
 
 .proc DoOverworldMovement
-       	rep #$20                            ; set A to 16-bit
-		; check the dpad, if any of the directional buttons are pressed,
-        ; move the screen accordingly
+	rep #$20                            ; set A to 16-bit
+	; check the dpad, if any of the directional buttons are pressed,
+	; move the screen accordingly
 CheckUpButton:
-        lda JOYPAD1                         ; read joypad buttons pressed
-        and #BUTTON_UP
-        beq CheckDownButton
-		lda MAPPOSY
-		cmp #MINPOSY
-		beq CheckDownButton
-		dec
-		sta MAPPOSY
+	lda JOYPAD1                         ; read joypad buttons pressed
+	and #BUTTON_UP
+	beq CheckDownButton
+	lda MAPPOSY
+	cmp #MINPOSY
+	beq CheckDownButton
+	dec
+	sta MAPPOSY
 
 CheckDownButton:
-        lda JOYPAD1                         ; read joypad buttons pressed
-        and #BUTTON_DOWN
-        beq CheckLeftButton
-		lda MAPPOSY
-		cmp #MAXPOSY
-		beq CheckLeftButton
-		inc
-		sta MAPPOSY
+	lda JOYPAD1                         ; read joypad buttons pressed
+	and #BUTTON_DOWN
+	beq CheckLeftButton
+	lda MAPPOSY
+	cmp #MAXPOSY
+	beq CheckLeftButton
+	inc
+	sta MAPPOSY
 
 CheckLeftButton:
-        lda JOYPAD1                         ; read joypad buttons pressed
-        and #BUTTON_LEFT
-        beq CheckRightButton
-		lda MAPPOSX
-		cmp #MINPOSX
-		beq CheckRightButton
-		dec
-		sta MAPPOSX
+	lda JOYPAD1                         ; read joypad buttons pressed
+	and #BUTTON_LEFT
+	beq CheckRightButton
+	lda MAPPOSX
+	cmp #MINPOSX
+	beq CheckRightButton
+	dec
+	sta MAPPOSX
 
 CheckRightButton:
-        lda JOYPAD1                         ; read joypad buttons pressed
-        and #BUTTON_RIGHT
-        beq Done
-		lda MAPPOSX
-		cmp #MAXPOSX
-		beq Done
-		inc
-		sta MAPPOSX
+	lda JOYPAD1                         ; read joypad buttons pressed
+	and #BUTTON_RIGHT
+	beq CheckXButton
+	lda MAPPOSX
+	cmp #MAXPOSX
+	beq CheckXButton
+	inc
+	sta MAPPOSX
+
+CheckXButton:
+CheckYButton:
+CheckRButton:
+	lda JOYPAD1                         ; read joypad buttons pressed
+	and #BUTTON_R
+	beq CheckLButton
+	lda MAPANGLE
+	dec
+	sta MAPANGLE
+
+CheckLButton:
+	lda JOYPAD1                         ; read joypad buttons pressed
+	and #BUTTON_L
+	beq Done
+	lda MAPANGLE
+	inc
+	sta MAPANGLE
+
 Done:
-		rts
+	rts
 .endproc
 
 .proc SetMode7Matrix
@@ -351,6 +380,45 @@ Done:
 	sta BG1VOFS
 	lda TempY + 1
 	sta BG1VOFS
+
+	; Now we do trig.
+	TempCos    = $02
+	TempSin    = $04
+	TempNegSin = $06
+	rep #$20
+	lda MAPANGLE
+	jsr Cosine
+	sta TempCos
+	lda MAPANGLE
+	jsr Sine
+	sta TempSin
+	sep #$20
+	lda TempSin
+	sta M7A
+	lda TempSin + 1
+	sta M7A
+	lda #$FE
+	sta M7B
+	lda MPYL
+	sta TempNegSin
+	lda MPYM
+	sta TempNegSin + 1
+
+	; Now we've done the trig calculations, set up the matrix.
+	lda TempCos
+	sta M7A
+	sta M7D
+	lda TempCos + 1
+	sta M7A
+	sta M7D
+	lda TempSin
+	sta M7B
+	lda TempSin + 1
+	sta M7B
+	lda TempNegSin
+	sta M7C
+	lda TempNegSin + 1
+	sta M7C
 
 	rts
 .endproc
