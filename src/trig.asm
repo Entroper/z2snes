@@ -50,18 +50,10 @@ CheckNegative:
 	pla
 	and #$0080        ; check if input was 128-255
 	beq Done
-	sep #$20          ; set A to 8-bit for working with multiply registers
-	lda Temp          ; if input was 128-255, we need to multiply by -1, which is $FE
-	sta M7A
-	lda Temp + 1
-	sta M7A
-	lda #$7E
-	sta M7B           ; muliply by -1
-	lda MPYL          ; result is 24-bit, but we only need 16 bits because it won't increase in magnitude
+	lda Temp          ; if input was 128-255, we need to multiply by -1
+	eor #$FFFF
+	inc               ; which we do by flipping all the bits and adding 1
 	sta Temp
-	lda MPYM
-	sta Temp + 1
-	rep #$20          ; set A back to 16-bit
 
 Done:
 	lda Temp

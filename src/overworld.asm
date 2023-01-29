@@ -397,7 +397,7 @@ Done:
 	sta M7A
 	lda TempSin + 1
 	sta M7A
-	lda #$FE
+	lda #$FF
 	sta M7B
 	lda MPYL
 	sta TempNegSin
@@ -407,18 +407,20 @@ Done:
 	; Now we've done the trig calculations, set up the matrix.
 	lda TempCos
 	sta M7A
-	sta M7D
 	lda TempCos + 1
 	sta M7A
-	sta M7D
-	lda TempSin
-	sta M7B
-	lda TempSin + 1
-	sta M7B
 	lda TempNegSin
-	sta M7C
+	sta M7B
 	lda TempNegSin + 1
+	sta M7B
+	lda TempSin
 	sta M7C
+	lda TempSin + 1
+	sta M7C
+	lda TempCos
+	sta M7D
+	lda TempCos + 1
+	sta M7D
 
 	rts
 .endproc
