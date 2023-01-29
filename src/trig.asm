@@ -42,7 +42,7 @@ UseTable:
 
 Normalized:           ; Temp is now in the range 0-63, so we look up the answer from the table
 	ldx Temp
-	lda SineTable, x
+	lda SineTable, X
 	and #$00FF        ; We only want the low byte
 	sta Temp          ; Temp is now the answer
 

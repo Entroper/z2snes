@@ -34,8 +34,8 @@ MINPOSY  = $0070
 MAXPOSY  = $0390
 MAPANGLE = $1004
 MAPZOOM  = $1006
-MAXZOOM  = $0200
-MINZOOM  = $0080
+MAXZOOM  = $7F   ; zoom value is fixed point, where $0040 is 1.0
+MINZOOM  = $20   ; we do this for precision reasons with mode 7 multiply
 
 ; $188, $178
 .proc LoadOverworld
@@ -55,7 +55,7 @@ MINZOOM  = $0080
 	lda #$0178              ; initial y scroll
 	sta MAPPOSY
 	stz MAPANGLE            ; initial rotation (none)
-	lda #$0100              ; initial zoom (1x)
+	lda #$0040              ; initial zoom (1x)
 	sta MAPZOOM
 
 	sep #$20                ; set A to 8-bit
@@ -299,7 +299,7 @@ CheckUpButton:
 	sta MAPPOSY
 
 CheckDownButton:
-	lda JOYPAD1                         ; read joypad buttons pressed
+	lda JOYPAD1
 	and #BUTTON_DOWN
 	beq CheckLeftButton
 	lda MAPPOSY
@@ -309,7 +309,7 @@ CheckDownButton:
 	sta MAPPOSY
 
 CheckLeftButton:
-	lda JOYPAD1                         ; read joypad buttons pressed
+	lda JOYPAD1
 	and #BUTTON_LEFT
 	beq CheckRightButton
 	lda MAPPOSX
@@ -319,7 +319,7 @@ CheckLeftButton:
 	sta MAPPOSX
 
 CheckRightButton:
-	lda JOYPAD1                         ; read joypad buttons pressed
+	lda JOYPAD1
 	and #BUTTON_RIGHT
 	beq CheckXButton
 	lda MAPPOSX
@@ -333,6 +333,7 @@ CheckXButton:
 	and #BUTTON_X
 	beq CheckYButton
 	lda MAPZOOM
+	and #$00FF        ; just read one byte
 	cmp #MINZOOM
 	beq CheckYButton
 	dec
@@ -343,13 +344,14 @@ CheckYButton:
 	and #BUTTON_Y
 	beq CheckRButton
 	lda MAPZOOM
+	and #$00FF
 	cmp #MAXZOOM
 	beq CheckRButton
 	inc
 	sta MAPZOOM
 
 CheckRButton:
-	lda JOYPAD1                         ; read joypad buttons pressed
+	lda JOYPAD1
 	and #BUTTON_R
 	beq CheckLButton
 	lda MAPANGLE
@@ -357,7 +359,7 @@ CheckRButton:
 	sta MAPANGLE
 
 CheckLButton:
-	lda JOYPAD1                         ; read joypad buttons pressed
+	lda JOYPAD1
 	and #BUTTON_L
 	beq Done
 	lda MAPANGLE
@@ -405,18 +407,72 @@ Done:
 	TempCos    = $02
 	TempSin    = $04
 	TempNegSin = $06
-	rep #$20
+	rep #$20          ; set A to 16-bit
 	lda MAPANGLE
-	jsr Cosine
+	jsr Cosine        ; get the cosine
 	sta TempCos
+	sep #$20          ; set A to 8-bit
+    lda TempCos       ; multiply -- this will be signed, fixed-point where A is IIII IIII.FFFF FFFF
+	sta M7A           ; and B is II.FF FFFF
+	lda TempCos + 1
+	sta M7A
+	lda MAPZOOM
+	sta M7B
+	lda MPYL          ; we need the result shifted down six times, but it's 24-bit, and we only need
+	asl               ; 16 bits of it, so we can shift it up twice and take the two high bytes
+	sta TempCos
+	lda MPYM
+	rol
+	sta TempCos + 1
+	lda MPYH
+	rol
+	sta TempCos + 2   ; this will overwrite, but if we do it in the right order, doesn't matter
+	lda TempCos
+	asl
+	lda TempCos + 1
+	rol
+	sta TempCos
+	lda TempCos + 2
+	rol
+	sta TempCos + 1
+
+	rep #$20          ; set A to 16-bit
 	lda MAPANGLE
-	jsr Sine
+	jsr Sine          ; get the sine
 	sta TempSin
+	sep #$20          ; set A to 8-bit
+    lda TempSin       ; multiply -- this will be signed, fixed-point where A is IIII IIII.FFFF FFFF
+	sta M7A           ; and B is II.FF FFFF
+	lda TempSin + 1
+	sta M7A
+	lda MAPZOOM
+	sta M7B
+	lda MPYL          ; we need the result shifted down six times, but it's 24-bit, and we only need
+	asl               ; 16 bits of it, so we can shift it up twice and take the two high bytes
+	sta TempSin
+	lda MPYM
+	rol
+	sta TempSin + 1
+	lda MPYH
+	rol
+	sta TempSin + 2   ; this will overwrite, but if we do it in the right order, doesn't matter
+	lda TempSin
+	asl
+	lda TempSin + 1
+	rol
+	sta TempSin
+	lda TempSin + 2
+	rol
+	sta TempSin + 1
+
+	rep #$20          ; set A to 16-bit
+	lda TempSin       ; get the negative sine
 	eor #$FFFF
 	inc
 	sta TempNegSin
 
 	; Now we've done the trig calculations, set up the matrix.
+	rep #$10          ; set X and Y to 16-bit
 	sep #$20
 	lda TempCos
 	sta M7A
