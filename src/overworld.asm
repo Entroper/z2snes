@@ -329,7 +329,25 @@ CheckRightButton:
 	sta MAPPOSX
 
 CheckXButton:
+	lda JOYPAD1
+	and #BUTTON_X
+	beq CheckYButton
+	lda MAPZOOM
+	cmp #MINZOOM
+	beq CheckYButton
+	dec
+	sta MAPZOOM
+
 CheckYButton:
+	lda JOYPAD1
+	and #BUTTON_Y
+	beq CheckRButton
+	lda MAPZOOM
+	cmp #MAXZOOM
+	beq CheckRButton
+	inc
+	sta MAPZOOM
+
 CheckRButton:
 	lda JOYPAD1                         ; read joypad buttons pressed
 	and #BUTTON_R
