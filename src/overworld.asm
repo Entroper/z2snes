@@ -61,15 +61,17 @@ MINZOOM  = $0080
 	sep #$20                ; set A to 8-bit
 	lda #$07
 	sta BGMODE
+	lda #$80
+	sta M7SEL               ; use CGRAM color 0 off the edge, no flipping
 	stz M7A
 	lda #$01
 	sta M7A                 ; initialize Mode 7 matrix with identity
+	stz M7B
+	stz M7B
+	stz M7C
+	stz M7C
 	stz M7D
 	sta M7D
-	stz M7B
-	stz M7B
-	stz M7C
-	stz M7C
 
 	jsr SetMode7Matrix      ; set up Mode 7 transform parameters
 
@@ -392,19 +394,12 @@ Done:
 	lda MAPANGLE
 	jsr Sine
 	sta TempSin
-	sep #$20
-	lda TempSin
-	sta M7A
-	lda TempSin + 1
-	sta M7A
-	lda #$FF
-	sta M7B
-	lda MPYL
+	eor #$FFFF
+	inc
 	sta TempNegSin
-	lda MPYM
-	sta TempNegSin + 1
 
 	; Now we've done the trig calculations, set up the matrix.
+	sep #$20
 	lda TempCos
 	sta M7A
 	lda TempCos + 1
